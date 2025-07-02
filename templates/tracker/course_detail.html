@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ course.name }} - Course Details{% endblock %}
+
+{% block content %}
+<div class="course-detail">
+    <div class="course-detail-header">
+        <div class="course-info">
+            <h1><i class="fas fa-book"></i> {{ course.name }}</h1>
+            <div class="course-stats">
+                <div class="stat-item">
+                    <span class="stat-value">{{ course.attendance_percentage }}%</span>
+                    <span class="stat-label">Attendance</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">{{ course.attended_lectures }}</span>
+                    <span class="stat-label">Attended</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">{{ course.total_lectures }}</span>
+                    <span class="stat-label">Total</span>
+                </div>
+            </div>
+        </div>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <div class="course-detail-grid">
+        <!-- Smart Suggestions -->
+        <div class="detail-card">
+            <h3><i class="fas fa-robot"></i> Smart Suggestions</h3>
+            {% if course.is_below_threshold %}
+                <div class="suggestion critical">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <strong>Critical:</strong> You need to attend the next {{ lectures_needed }} lecture(s) to reach 75% attendance.
+                    </div>
+                </div>
+            {% else %}
+                <div class="suggestion safe">
+                    <i class="fas fa-check-circle"></i>
+                    <div>
+                        <strong>Safe:</strong> You can skip {{ lectures_can_skip }} lecture(s) and still maintain above 75%.
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="detail-card">
+            <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+            <div class="action-buttons">
+                <button class="btn btn-success" onclick="updateAttendance({{ course.id }}, 'increment')">
+                    <i class="fas fa-plus"></i> Mark Attended
+                </button>
+                <button class="btn btn-outline" onclick="updateAttendance({{ course.id }}, 'add_total')">
+                    <i class="fas fa-calendar-plus"></i> Add Lecture
+                </button>
+                <button class="btn btn-warning" onclick="updateAttendance({{ course.id }}, 'decrement')">
+                    <i class="fas fa-minus"></i> Remove Attended
+                </button>
+                <button class="btn btn-outline" onclick="updateAttendance({{ course.id }}, 'remove_total')">
+                    <i class="fas fa-calendar-minus"></i> Remove Lecture
+                </button>
+            </div>
+        </div>
+
+        <!-- Schedule -->
+        <div class="detail-card">
+            <div class="card-header">
+                <h3><i class="fas fa-calendar"></i> Lecture Schedule</h3>
+                <button class="btn btn-sm btn-primary" onclick="openAddScheduleModal()">
+                    <i class="fas fa-plus"></i> Add Schedule
+                </button>
+            </div>
+            {% if schedules %}
+                <div class="schedule-list">
+                    {% for schedule in schedules %}
+                    <div class="schedule-item">
+                        <div class="schedule-day">{{ schedule.get_day_of_week_display }}</div>
+                        <div class="schedule-time">{{ schedule.start_time }} - {{ schedule.end_time }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-message">No schedule added yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Recent Records -->
+        <div class="detail-card">
+            <h3><i class="fas fa-history"></i> Recent Records</h3>
+            {% if recent_records %}
+                <div class="records-list">
+                    {% for record in recent_records %}
+                    <div class="record-item">
+                        <div class="record-date">{{ record.date }}</div>
+                        <div class="record-status {% if record.attended %}present{% else %}absent{% endif %}">
+                            {% if record.attended %}
+                                <i class="fas fa-check"></i> Present
+                            {% else %}
+                                <i class="fas fa-times"></i> Absent
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-message">No attendance records yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Schedule Modal -->
+<div id="addScheduleModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-calendar-plus"></i> Add Schedule</h3>
+            <button class="modal-close" onclick="closeModal('addScheduleModal')">&times;</button>
+        </div>
+        <form method="post" action="{% url 'add_schedule' course.id %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Day of Week</label>
+                <select name="day_of_week" required>
+                    <option value="">Select Day</option>
+                    <option value="monday">Monday</option>
+                    <option value="tuesday">Tuesday</option>
+                    <option value="wednesday">Wednesday</option>
+                    <option value="thursday">Thursday</option>
+                    <option value="friday">Friday</option>
+                    <option value="saturday">Saturday</option>
+                    <option value="sunday">Sunday</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Time</label>
+                    <input type="time" name="start_time" required>
+                </div>
+                <div class="form-group">
+                    <label>End Time</label>
+                    <input type="time" name="end_time" required>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeModal('addScheduleModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Schedule</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openAddScheduleModal() {
+    document.getElementById('addScheduleModal').style.display = 'flex';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+async function updateAttendance(courseId, action) {
+    try {
+        const response = await fetch('/update-attendance/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                course_id: courseId,
+                action: action
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error updating attendance: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error updating attendance: ' + error.message);
+    }
+}
+
+window.onclick = function(event) {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}
