@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: attendance-tracker
+    env: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate
+    startCommand: gunicorn attendance_tracker.wsgi:application
+    staticPublishPath: staticfiles
+    static:
+      - route: /static
+        dir: staticfiles
