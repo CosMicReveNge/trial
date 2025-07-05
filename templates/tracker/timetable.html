@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+
+{% block title %}Timetable - Attendance Tracker{% endblock %}
+
+{% block content %}
+<div class="timetable-container">
+    <div class="timetable-header">
+        <h1><i class="fas fa-calendar-alt"></i> Weekly Timetable</h1>
+        <div class="timetable-actions">
+            <a href="{% url 'dashboard' %}" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Today's Schedule -->
+    <div class="today-schedule">
+        <h2><i class="fas fa-clock"></i> Today's Lectures</h2>
+        {% if today_schedule %}
+            <div class="today-lectures">
+                {% for lecture in today_schedule %}
+                <div class="today-lecture-card">
+                    <div class="lecture-time">
+                        <i class="fas fa-clock"></i>
+                        {{ lecture.start_time }} - {{ lecture.end_time }}
+                    </div>
+                    <div class="lecture-details">
+                        <h4>{{ lecture.course.name }}</h4>
+                        {% if lecture.room %}
+                            <p><i class="fas fa-map-marker-alt"></i> {{ lecture.room }}</p>
+                        {% endif %}
+                        {% if lecture.professor %}
+                            <p><i class="fas fa-user-tie"></i> {{ lecture.professor }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="lecture-actions">
+                        <button class="btn btn-sm btn-success" onclick="markAttendanceToday({{ lecture.course.id }}, true)">
+                            <i class="fas fa-check"></i> Present
+                        </button>
+                        <button class="btn btn-sm btn-warning" onclick="markAttendanceToday({{ lecture.course.id }}, false)">
+                            <i class="fas fa-times"></i> Absent
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-calendar-times"></i>
+                <p>No lectures scheduled for today</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Weekly Timetable Grid -->
+    <div class="weekly-timetable">
+        <h2><i class="fas fa-table"></i> Weekly Schedule</h2>
+        <div class="timetable-grid">
+            <div class="time-column">
+                <div class="time-header">Time</div>
+                {% for time_slot in time_slots %}
+                <div class="time-slot">{{ time_slot }}</div>
+                {% endfor %}
+            </div>
+            
+            {% for day_code, day_name in days_of_week %}
+            <div class="day-column">
+                <div class="day-header">{{ day_name }}</div>
+                {% for time_slot in time_slots %}
+                <div class="lecture-slot" data-day="{{ day_code }}" data-time="{{ time_slot }}">
+                    {% for lecture in weekly_schedule|lookup:day_code %}
+                        {% if lecture.start_time|time:"H:i" == time_slot %}
+                        <div class="lecture-block" style="height: {{ lecture.duration_minutes|div:30|mul:40 }}px;">
+                            <div class="lecture-title">{{ lecture.course.name }}</div>
+                            <div class="lecture-time">{{ lecture.start_time }} - {{ lecture.end_time }}</div>
+                            {% if lecture.room %}
+                                <div class="lecture-room">{{ lecture.room }}</div>
+                            {% endif %}
+                            <div class="lecture-attendance">
+                                <span class="attendance-percentage {% if lecture.course.is_below_threshold %}danger{% else %}success{% endif %}">
+                                    {{ lecture.course.attendance_percentage }}%
+                                </span>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Upcoming Lectures with Smart Suggestions -->
+    <div class="upcoming-section">
+        <h2><i class="fas fa-forward"></i> Upcoming Lectures & Suggestions</h2>
+        {% if upcoming_lectures %}
+            <div class="upcoming-grid">
+                {% for lecture_data in upcoming_lectures %}
+                <div class="upcoming-card {{ lecture_data.suggestion.type }}">
+                    <div class="upcoming-header">
+                        <div class="upcoming-course">
+                            <h4>{{ lecture_data.course.name }}</h4>
+                            <span class="attendance-badge {% if lecture_data.course.is_below_threshold %}danger{% else %}success{% endif %}">
+                                {{ lecture_data.course.attendance_percentage }}%
+                            </span>
+                        </div>
+                        <div class="upcoming-date">
+                            <div class="date">{{ lecture_data.lecture_info.date|date:"M d" }}</div>
+                            <div class="day">{{ lecture_data.lecture_info.schedule.get_day_of_week_display }}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="upcoming-details">
+                        <div class="time-location">
+                            <span><i class="fas fa-clock"></i> {{ lecture_data.lecture_info.schedule.start_time }} - {{ lecture_data.lecture_info.schedule.end_time }}</span>
+                            {% if lecture_data.lecture_info.schedule.room %}
+                                <span><i class="fas fa-map-marker-alt"></i> {{ lecture_data.lecture_info.schedule.room }}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="suggestion {{ lecture_data.suggestion.type }}">
+                            <div class="suggestion-icon">
+                                {% if lecture_data.suggestion.type == 'critical' %}
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                {% elif lecture_data.suggestion.type == 'warning' %}
+                                    <i class="fas fa-exclamation-circle"></i>
+                                {% elif lecture_data.suggestion.type == 'safe' %}
+                                    <i class="fas fa-check-circle"></i>
+                                {% else %}
+                                    <i class="fas fa-info-circle"></i>
+                                {% endif %}
+                            </div>
+                            <div class="suggestion-text">
+                                <strong>{{ lecture_data.suggestion.type|title }}:</strong>
+                                {{ lecture_data.suggestion.message }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="upcoming-actions">
+                        {% if lecture_data.lecture_info.is_today %}
+                            <button class="btn btn-sm btn-success" onclick="markAttendanceForDate({{ lecture_data.course.id }}, '{{ lecture_data.lecture_info.date|date:"Y-m-d" }}', true)">
+                                <i class="fas fa-check"></i> Mark Present
+                            </button>
+                        {% else %}
+                            <span class="days-away">
+                                {% if lecture_data.lecture_info.days_from_now == 1 %}
+                                    Tomorrow
+                                {% else %}
+                                    In {{ lecture_data.lecture_info.days_from_now }} days
+                                {% endif %}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-calendar-check"></i>
+                <p>No upcoming lectures scheduled</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function markAttendanceToday(courseId, attended) {
+    const today = new Date().toISOString().split('T')[0];
+    await markAttendanceForDate(courseId, today, attended);
+}
+
+async function markAttendanceForDate(courseId, date, attended) {
+    try {
+        const response = await fetch('/mark-attendance/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                course_id: courseId,
+                date: date,
+                attended: attended
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const status = attended ? 'Present' : 'Absent';
+            showAlert(`Attendance marked as ${status}`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Error marking attendance: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showAlert('Error marking attendance: ' + error.message, 'error');
+    }
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type}`;
+    alertDiv.innerHTML = `
+        <i class="fas fa-info-circle"></i>
+        ${message}
+        <button class="alert-close" onclick="this.parentElement.remove()">×</button>
+    `;
+    
+    const container = document.querySelector('.timetable-container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        if (alertDiv.parentElement) {
+            alertDiv.remove();
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}

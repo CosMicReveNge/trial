@@ -48,6 +48,47 @@
             {% endif %}
         </div>
 
+        <!-- Upcoming Lectures -->
+        <div class="detail-card">
+            <h3><i class="fas fa-calendar-week"></i> Upcoming Lectures</h3>
+            {% if upcoming_lectures %}
+                <div class="upcoming-lectures-list">
+                    {% for lecture_info in upcoming_lectures %}
+                    <div class="upcoming-lecture-item">
+                        <div class="upcoming-date">
+                            <div class="date-day">{{ lecture_info.date|date:"d" }}</div>
+                            <div class="date-month">{{ lecture_info.date|date:"M" }}</div>
+                        </div>
+                        <div class="upcoming-details">
+                            <div class="upcoming-day">{{ lecture_info.schedule.get_day_of_week_display }}</div>
+                            <div class="upcoming-time">{{ lecture_info.schedule.start_time }} - {{ lecture_info.schedule.end_time }}</div>
+                            {% if lecture_info.schedule.room %}
+                                <div class="upcoming-room">{{ lecture_info.schedule.room }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="upcoming-actions">
+                            {% if lecture_info.is_today %}
+                                <button class="btn btn-sm btn-success" onclick="markAttendanceForDate({{ course.id }}, '{{ lecture_info.date|date:"Y-m-d" }}', true)">
+                                    Present
+                                </button>
+                            {% else %}
+                                <span class="days-away">
+                                    {% if lecture_info.days_from_now == 1 %}
+                                        Tomorrow
+                                    {% else %}
+                                        {{ lecture_info.days_from_now }}d
+                                    {% endif %}
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-message">No upcoming lectures scheduled.</p>
+            {% endif %}
+        </div>
+
         <!-- Quick Actions -->
         <div class="detail-card">
             <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
@@ -146,6 +187,16 @@
                     <input type="time" name="end_time" required>
                 </div>
             </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Room/Location</label>
+                    <input type="text" name="room" placeholder="e.g., Room 101">
+                </div>
+                <div class="form-group">
+                    <label>Professor</label>
+                    <input type="text" name="professor" placeholder="Professor name">
+                </div>
+            </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-outline" onclick="closeModal('addScheduleModal')">Cancel</button>
                 <button type="submit" class="btn btn-primary">Add Schedule</button>
@@ -197,6 +248,49 @@ window.onclick = function(event) {
             modal.style.display = 'none';
         }
     });
+}
+
+async function markAttendanceForDate(courseId, date, attended) {
+    try {
+        const response = await fetch('/mark-attendance-for-date/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({
+                course_id: courseId,
+                date: date,
+                attended: attended
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error marking attendance: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error marking attendance: ' + error.message);
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            let cookie = cookies[i].trim();
+            // Does this cookie string begin with the name we want?
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
 }
 </script>
 {% endblock %}

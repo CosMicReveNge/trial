@@ -6,10 +6,71 @@
 <div class="dashboard">
     <div class="dashboard-header">
         <h1><i class="fas fa-tachometer-alt"></i> Dashboard</h1>
-        <button class="btn btn-primary" onclick="openAddCourseModal()">
-            <i class="fas fa-plus"></i> Add Course
-        </button>
+        <div class="header-actions">
+            <a href="{% url 'timetable' %}" class="btn btn-outline">
+                <i class="fas fa-calendar-alt"></i> Timetable
+            </a>
+            <button class="btn btn-primary" onclick="openAddCourseModal()">
+                <i class="fas fa-plus"></i> Add Course
+            </button>
+        </div>
     </div>
+
+    <!-- Today's Schedule Quick View -->
+    {% if today_schedule %}
+    <div class="today-quick-view">
+        <h2><i class="fas fa-clock"></i> Today's Lectures</h2>
+        <div class="today-lectures-horizontal">
+            {% for lecture in today_schedule %}
+            <div class="today-lecture-mini">
+                <div class="lecture-time">{{ lecture.start_time }}</div>
+                <div class="lecture-name">{{ lecture.course.name }}</div>
+                <div class="lecture-status {% if lecture.course.is_below_threshold %}danger{% else %}success{% endif %}">
+                    {{ lecture.course.attendance_percentage }}%
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Upcoming Lectures Section -->
+    {% if upcoming_lectures %}
+    <div class="upcoming-lectures-section">
+        <h2><i class="fas fa-forward"></i> Next Lectures</h2>
+        <div class="upcoming-lectures-grid">
+            {% for lecture_data in upcoming_lectures %}
+            <div class="upcoming-lecture-card {{ lecture_data.suggestion.type }}">
+                <div class="upcoming-lecture-header">
+                    <h4>{{ lecture_data.course.name }}</h4>
+                    <span class="upcoming-date">
+                        {% if lecture_data.lecture_info.is_today %}
+                            Today
+                        {% elif lecture_data.lecture_info.days_from_now == 1 %}
+                            Tomorrow
+                        {% else %}
+                            {{ lecture_data.lecture_info.date|date:"M d" }}
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="upcoming-lecture-time">
+                    {{ lecture_data.lecture_info.schedule.start_time }} - {{ lecture_data.lecture_info.schedule.end_time }}
+                </div>
+                <div class="upcoming-suggestion {{ lecture_data.suggestion.type }}">
+                    {% if lecture_data.suggestion.type == 'critical' %}
+                        <i class="fas fa-exclamation-triangle"></i>
+                    {% elif lecture_data.suggestion.type == 'safe' %}
+                        <i class="fas fa-check-circle"></i>
+                    {% else %}
+                        <i class="fas fa-info-circle"></i>
+                    {% endif %}
+                    {{ lecture_data.suggestion.message }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Stats Cards -->
     <div class="stats-grid">
