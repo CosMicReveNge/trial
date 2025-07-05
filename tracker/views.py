@@ -46,7 +46,7 @@ def dashboard(request):
     for course in courses:
         if course.is_below_threshold:
             needed = course.lectures_needed_for_75_percent()
-            next_lectures = course.get_next_lectures(days=7)
+            next_lectures = course.get_next_lectures(days_ahead=7)
             next_lecture_text = ""
             if next_lectures:
                 next_lecture = next_lectures[0]

@@ -17,6 +17,9 @@ urlpatterns = [
     
     # Attendance URLs
     path('update-attendance/', views.update_attendance, name='update_attendance'),
+
+    # Timetable URL
+    path('timetable/', views.timetable_view, name='timetable'),
     
     # Schedule URLs
     path('course/<int:course_id>/add-schedule/', views.add_schedule, name='add_schedule'),
