@@ -6,11 +6,12 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from django.db import models  # Add this import
+from django.db import models
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 import json
 from datetime import datetime, date, timedelta
-from .models import Course, LectureSchedule, AttendanceRecord, Timetable
+from .models import Course, LectureSchedule, AttendanceRecord, Timetable, TimetableSlot
 
 def register_view(request):
     if request.method == 'POST':
@@ -31,22 +32,25 @@ def register_view(request):
 def dashboard(request):
     courses = Course.objects.filter(user=request.user).order_by('name')
     
-    # Get or create timetable
+    # Get or create timetable and refresh if needed
     timetable, created = Timetable.objects.get_or_create(user=request.user)
+    if timetable.refresh_weekly():
+        messages.info(request, 'Timetable refreshed for the new week!')
     
     # Calculate overall stats
     total_courses = courses.count()
-    courses_below_75 = sum(1 for course in courses if course.attendance_percentage < 75)
+    regular_courses = courses.filter(is_regular=True)
+    courses_below_75 = sum(1 for course in regular_courses if course.attendance_percentage < 75)
     
-    # Get upcoming lectures with suggestions
+    # Get upcoming lectures with suggestions (only for regular courses)
     upcoming_lectures = timetable.get_upcoming_lectures(days=3)[:5]  # Next 5 lectures
     
-    # Get suggestions for each course
+    # Get suggestions for each regular course
     suggestions = []
-    for course in courses:
+    for course in regular_courses:
         if course.is_below_threshold:
             needed = course.lectures_needed_for_75_percent()
-            next_lectures = course.get_next_lectures(days_ahead=7)
+            next_lectures = course.get_next_lectures(days=7)
             next_lecture_text = ""
             if next_lectures:
                 next_lecture = next_lectures[0]
@@ -70,6 +74,7 @@ def dashboard(request):
     
     context = {
         'courses': courses,
+        'regular_courses': regular_courses,
         'total_courses': total_courses,
         'courses_below_75': courses_below_75,
         'suggestions': suggestions,
@@ -82,14 +87,23 @@ def dashboard(request):
 def timetable_view(request):
     """Display weekly timetable"""
     timetable, created = Timetable.objects.get_or_create(user=request.user)
+    if timetable.refresh_weekly():
+        messages.info(request, 'Timetable refreshed for the new week!')
+    
     weekly_schedule = timetable.get_weekly_schedule()
     upcoming_lectures = timetable.get_upcoming_lectures(days=7)
     
-    # Time slots for display (8 AM to 8 PM)
+    # Time slots for display (6 AM to 10 PM)
     time_slots = []
-    for hour in range(8, 21):  # 8 AM to 8 PM
+    for hour in range(6, 23):  # 6 AM to 10 PM
         time_slots.append(f"{hour:02d}:00")
         time_slots.append(f"{hour:02d}:30")
+    
+    # Get current week dates for manual slot booking
+    current_week_start = timetable.get_current_week_start()
+    week_dates = []
+    for i in range(7):
+        week_dates.append(current_week_start + timedelta(days=i))
     
     context = {
         'timetable': timetable,
@@ -97,6 +111,9 @@ def timetable_view(request):
         'upcoming_lectures': upcoming_lectures,
         'time_slots': time_slots,
         'days_of_week': LectureSchedule.DAYS_OF_WEEK,
+        'week_dates': week_dates,
+        'current_week_start': current_week_start,
+        'slot_types': TimetableSlot.SLOT_TYPES,
     }
     return render(request, 'tracker/timetable.html', context)
 
@@ -106,6 +123,7 @@ def add_course(request):
         name = request.POST.get('name')
         total_lectures = int(request.POST.get('total_lectures', 0))
         attended_lectures = int(request.POST.get('attended_lectures', 0))
+        is_regular = request.POST.get('is_regular') == 'on'
         
         if attended_lectures > total_lectures:
             messages.error(request, 'Attended lectures cannot exceed total lectures.')
@@ -116,16 +134,117 @@ def add_course(request):
             name=name,
             defaults={
                 'total_lectures': total_lectures,
-                'attended_lectures': attended_lectures
+                'attended_lectures': attended_lectures,
+                'is_regular': is_regular
             }
         )
         
         if created:
             messages.success(request, f'Course "{name}" added successfully!')
+            
+            # If it's a regular course, redirect to add schedule
+            if is_regular:
+                return redirect('add_course_schedule', course_id=course.id)
         else:
             messages.error(request, f'Course "{name}" already exists.')
     
     return redirect('dashboard')
+
+@login_required
+def add_course_schedule(request, course_id):
+    """Add schedule for a regular course"""
+    course = get_object_or_404(Course, id=course_id, user=request.user, is_regular=True)
+    
+    if request.method == 'POST':
+        # Handle multiple schedule entries
+        days = request.POST.getlist('days')
+        start_times = request.POST.getlist('start_times')
+        end_times = request.POST.getlist('end_times')
+        rooms = request.POST.getlist('rooms')
+        professors = request.POST.getlist('professors')
+        
+        schedules_created = 0
+        for i in range(len(days)):
+            if days[i] and start_times[i] and end_times[i]:
+                schedule, created = LectureSchedule.objects.get_or_create(
+                    course=course,
+                    day_of_week=days[i],
+                    start_time=start_times[i],
+                    defaults={
+                        'end_time': end_times[i],
+                        'room': rooms[i] if i < len(rooms) else '',
+                        'professor': professors[i] if i < len(professors) else ''
+                    }
+                )
+                if created:
+                    schedules_created += 1
+        
+        if schedules_created > 0:
+            messages.success(request, f'{schedules_created} schedule(s) added for {course.name}!')
+        
+        return redirect('dashboard')
+    
+    context = {
+        'course': course,
+        'days_of_week': LectureSchedule.DAYS_OF_WEEK,
+    }
+    return render(request, 'tracker/add_course_schedule.html', context)
+
+@login_required
+def book_manual_slot(request):
+    """Book a manual time slot in the timetable"""
+    if request.method == 'POST':
+        try:
+            timetable, _ = Timetable.objects.get_or_create(user=request.user)
+            
+            title = request.POST.get('title')
+            slot_type = request.POST.get('slot_type')
+            date_str = request.POST.get('date')
+            start_time = request.POST.get('start_time')
+            end_time = request.POST.get('end_time')
+            notes = request.POST.get('notes', '')
+            
+            # Parse date
+            slot_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            
+            # Create the slot
+            slot = TimetableSlot(
+                timetable=timetable,
+                title=title,
+                slot_type=slot_type,
+                date=slot_date,
+                start_time=start_time,
+                end_time=end_time,
+                notes=notes
+            )
+            
+            # Check for conflicts
+            has_conflict, conflict_message = slot.has_conflict()
+            if has_conflict:
+                messages.error(request, f'Time slot conflict: {conflict_message}')
+                return redirect('timetable')
+            
+            # Validate and save
+            slot.full_clean()
+            slot.save()
+            
+            messages.success(request, f'Time slot "{title}" booked successfully!')
+            
+        except ValidationError as e:
+            messages.error(request, f'Validation error: {e}')
+        except Exception as e:
+            messages.error(request, f'Error booking slot: {str(e)}')
+    
+    return redirect('timetable')
+
+@login_required
+def delete_manual_slot(request, slot_id):
+    """Delete a manual time slot"""
+    slot = get_object_or_404(TimetableSlot, id=slot_id, timetable__user=request.user)
+    slot_title = slot.title
+    slot.delete()
+    messages.success(request, f'Time slot "{slot_title}" deleted successfully!')
+    return redirect('timetable')
 
 @login_required
 def edit_course(request, course_id):
@@ -135,12 +254,18 @@ def edit_course(request, course_id):
         course.name = request.POST.get('name')
         course.total_lectures = int(request.POST.get('total_lectures', 0))
         course.attended_lectures = int(request.POST.get('attended_lectures', 0))
+        was_regular = course.is_regular
+        course.is_regular = request.POST.get('is_regular') == 'on'
         
         if course.attended_lectures > course.total_lectures:
             messages.error(request, 'Attended lectures cannot exceed total lectures.')
         else:
             course.save()
             messages.success(request, 'Course updated successfully!')
+            
+            # If course became regular, redirect to add schedule
+            if course.is_regular and not was_regular:
+                return redirect('add_course_schedule', course_id=course.id)
         
         return redirect('dashboard')
     
@@ -195,15 +320,15 @@ def course_detail(request, course_id):
     course = get_object_or_404(Course, id=course_id, user=request.user)
     schedules = LectureSchedule.objects.filter(course=course)
     recent_records = AttendanceRecord.objects.filter(course=course)[:10]
-    upcoming_lectures = course.get_next_lectures(days=14)
+    upcoming_lectures = course.get_next_lectures(days=14) if course.is_regular else []
     
     context = {
         'course': course,
         'schedules': schedules,
         'recent_records': recent_records,
         'upcoming_lectures': upcoming_lectures,
-        'lectures_needed': course.lectures_needed_for_75_percent(),
-        'lectures_can_skip': course.lectures_can_skip(),
+        'lectures_needed': course.lectures_needed_for_75_percent() if course.is_regular else 0,
+        'lectures_can_skip': course.lectures_can_skip() if course.is_regular else 0,
     }
     return render(request, 'tracker/course_detail.html', context)
 
@@ -297,7 +422,7 @@ def mark_attendance_for_date(request):
 
 @login_required
 def suggestions_api(request):
-    courses = Course.objects.filter(user=request.user)
+    courses = Course.objects.filter(user=request.user, is_regular=True)
     timetable, _ = Timetable.objects.get_or_create(user=request.user)
     
     suggestions = []

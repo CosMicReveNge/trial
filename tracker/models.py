@@ -10,6 +10,7 @@ class Course(models.Model):
     name = models.CharField(max_length=200)
     total_lectures = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     attended_lectures = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    is_regular = models.BooleanField(default=False, help_text="Is this a regular course with scheduled lectures?")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -158,35 +159,110 @@ class Timetable(models.Model):
     name = models.CharField(max_length=100, default="My Timetable")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    last_refreshed = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"{self.user.username}'s {self.name}"
     
     def get_weekly_schedule(self):
-        """Get organized weekly schedule"""
+        """Get organized weekly schedule including both regular courses and manual slots"""
         schedule = {day[0]: [] for day in LectureSchedule.DAYS_OF_WEEK}
         
+        # Add regular course lectures
         lectures = LectureSchedule.objects.filter(
-            course__user=self.user
+            course__user=self.user,
+            course__is_regular=True
         ).select_related('course').order_by('start_time')
         
         for lecture in lectures:
-            schedule[lecture.day_of_week].append(lecture)
+            schedule[lecture.day_of_week].append({
+                'type': 'lecture',
+                'item': lecture,
+                'title': lecture.course.name,
+                'start_time': lecture.start_time,
+                'end_time': lecture.end_time,
+                'room': lecture.room,
+                'professor': lecture.professor,
+                'course': lecture.course
+            })
+        
+        # Add manual time slots for current week
+        current_week_start = self.get_current_week_start()
+        current_week_end = current_week_start + timedelta(days=6)
+        
+        manual_slots = TimetableSlot.objects.filter(
+            timetable=self,
+            date__gte=current_week_start,
+            date__lte=current_week_end
+        ).order_by('start_time')
+        
+        for slot in manual_slots:
+            day_name = slot.date.strftime('%A').lower()
+            schedule[day_name].append({
+                'type': 'manual_slot',
+                'item': slot,
+                'title': slot.title,
+                'start_time': slot.start_time,
+                'end_time': slot.end_time,
+                'notes': slot.notes,
+                'date': slot.date
+            })
+        
+        # Sort each day's schedule by start time
+        for day in schedule:
+            schedule[day].sort(key=lambda x: x['start_time'])
         
         return schedule
     
     def get_today_schedule(self):
-        """Get today's lectures"""
-        today = timezone.now().strftime('%A').lower()
-        return LectureSchedule.objects.filter(
+        """Get today's schedule including both lectures and manual slots"""
+        today = timezone.now().date()
+        today_name = today.strftime('%A').lower()
+        
+        schedule = []
+        
+        # Add regular lectures
+        lectures = LectureSchedule.objects.filter(
             course__user=self.user,
-            day_of_week=today
+            course__is_regular=True,
+            day_of_week=today_name
         ).select_related('course').order_by('start_time')
+        
+        for lecture in lectures:
+            schedule.append({
+                'type': 'lecture',
+                'item': lecture,
+                'title': lecture.course.name,
+                'start_time': lecture.start_time,
+                'end_time': lecture.end_time,
+                'room': lecture.room,
+                'professor': lecture.professor,
+                'course': lecture.course
+            })
+        
+        # Add manual slots for today
+        manual_slots = TimetableSlot.objects.filter(
+            timetable=self,
+            date=today
+        ).order_by('start_time')
+        
+        for slot in manual_slots:
+            schedule.append({
+                'type': 'manual_slot',
+                'item': slot,
+                'title': slot.title,
+                'start_time': slot.start_time,
+                'end_time': slot.end_time,
+                'notes': slot.notes,
+                'date': slot.date
+            })
+        
+        return sorted(schedule, key=lambda x: x['start_time'])
     
     def get_upcoming_lectures(self, days=7):
         """Get upcoming lectures with smart suggestions"""
         upcoming = []
-        courses = Course.objects.filter(user=self.user)
+        courses = Course.objects.filter(user=self.user, is_regular=True)
         
         for course in courses:
             next_lectures = course.get_next_lectures(days)
@@ -233,3 +309,97 @@ class Timetable(models.Model):
                     'priority': 'medium',
                     'action': 'attend'
                 }
+    
+    def get_current_week_start(self):
+        """Get the start date of the current week (Monday)"""
+        today = timezone.now().date()
+        days_since_monday = today.weekday()
+        return today - timedelta(days=days_since_monday)
+    
+    def should_refresh(self):
+        """Check if timetable should be refreshed (weekly)"""
+        current_week_start = self.get_current_week_start()
+        last_refresh_week_start = self.last_refreshed.date() - timedelta(days=self.last_refreshed.date().weekday())
+        return current_week_start > last_refresh_week_start
+    
+    def refresh_weekly(self):
+        """Refresh timetable - clear old manual slots, keep regular schedules"""
+        if self.should_refresh():
+            # Delete manual slots from previous weeks
+            current_week_start = self.get_current_week_start()
+            TimetableSlot.objects.filter(
+                timetable=self,
+                date__lt=current_week_start
+            ).delete()
+            
+            # Update last refreshed timestamp
+            self.last_refreshed = timezone.now()
+            self.save()
+            
+            return True
+        return False
+
+class TimetableSlot(models.Model):
+    """Manual time slots that users can book in their timetable"""
+    SLOT_TYPES = [
+        ('study', 'Study Session'),
+        ('meeting', 'Meeting'),
+        ('gym', 'Gym/Exercise'),
+        ('personal', 'Personal Time'),
+        ('other', 'Other'),
+    ]
+    
+    timetable = models.ForeignKey(Timetable, on_delete=models.CASCADE, related_name='manual_slots')
+    title = models.CharField(max_length=200)
+    slot_type = models.CharField(max_length=20, choices=SLOT_TYPES, default='other')
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['date', 'start_time']
+        unique_together = ['timetable', 'date', 'start_time']
+    
+    def __str__(self):
+        return f"{self.title} - {self.date} {self.start_time}"
+    
+    @property
+    def duration_minutes(self):
+        """Calculate slot duration in minutes"""
+        start_datetime = datetime.combine(date.today(), self.start_time)
+        end_datetime = datetime.combine(date.today(), self.end_time)
+        return int((end_datetime - start_datetime).total_seconds() / 60)
+    
+    def clean(self):
+        """Validate that end time is after start time"""
+        from django.core.exceptions import ValidationError
+        if self.end_time <= self.start_time:
+            raise ValidationError('End time must be after start time.')
+    
+    def has_conflict(self):
+        """Check if this slot conflicts with existing schedule"""
+        # Check conflicts with other manual slots
+        conflicting_slots = TimetableSlot.objects.filter(
+            timetable=self.timetable,
+            date=self.date
+        ).exclude(pk=self.pk)
+        
+        for slot in conflicting_slots:
+            if (self.start_time < slot.end_time and self.end_time > slot.start_time):
+                return True, f"Conflicts with '{slot.title}' ({slot.start_time}-{slot.end_time})"
+        
+        # Check conflicts with regular lectures
+        day_name = self.date.strftime('%A').lower()
+        lectures = LectureSchedule.objects.filter(
+            course__user=self.timetable.user,
+            course__is_regular=True,
+            day_of_week=day_name
+        )
+        
+        for lecture in lectures:
+            if (self.start_time < lecture.end_time and self.end_time > lecture.start_time):
+                return True, f"Conflicts with '{lecture.course.name}' lecture ({lecture.start_time}-{lecture.end_time})"
+        
+        return False, None

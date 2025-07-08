@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Schedule for {{ course.name }} - Attendance Tracker{% endblock %}
+
+{% block content %}
+<div class="schedule-setup-container">
+    <div class="schedule-header">
+        <h1><i class="fas fa-calendar-plus"></i> Add Schedule for {{ course.name }}</h1>
+        <p>Set up the weekly schedule for this regular course</p>
+    </div>
+
+    <form method="post" class="schedule-form">
+        {% csrf_token %}
+        
+        <div class="schedule-entries" id="scheduleEntries">
+            <div class="schedule-entry">
+                <h3>Schedule Entry 1</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Day of Week</label>
+                        <select name="days" required>
+                            <option value="">Select Day</option>
+                            {% for day_code, day_name in days_of_week %}
+                            <option value="{{ day_code }}">{{ day_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Start Time</label>
+                        <input type="time" name="start_times" required>
+                    </div>
+                    <div class="form-group">
+                        <label>End Time</label>
+                        <input type="time" name="end_times" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Room/Location</label>
+                        <input type="text" name="rooms" placeholder="e.g., Room 101">
+                    </div>
+                    <div class="form-group">
+                        <label>Professor</label>
+                        <input type="text" name="professors" placeholder="Professor name">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="schedule-actions">
+            <button type="button" class="btn btn-outline" onclick="addScheduleEntry()">
+                <i class="fas fa-plus"></i> Add Another Time Slot
+            </button>
+            <button type="button" class="btn btn-outline" onclick="removeLastEntry()">
+                <i class="fas fa-minus"></i> Remove Last Entry
+            </button>
+        </div>
+
+        <div class="form-actions">
+            <a href="{% url 'dashboard' %}" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Skip for Now
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> Save Schedule
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let entryCount = 1;
+
+function addScheduleEntry() {
+    entryCount++;
+    const container = document.getElementById('scheduleEntries');
+    const newEntry = document.createElement('div');
+    newEntry.className = 'schedule-entry';
+    newEntry.innerHTML = `
+        <h3>Schedule Entry ${entryCount}</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Day of Week</label>
+                <select name="days" required>
+                    <option value="">Select Day</option>
+                    {% for day_code, day_name in days_of_week %}
+                    <option value="{{ day_code }}">{{ day_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Start Time</label>
+                <input type="time" name="start_times" required>
+            </div>
+            <div class="form-group">
+                <label>End Time</label>
+                <input type="time" name="end_times" required>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Room/Location</label>
+                <input type="text" name="rooms" placeholder="e.g., Room 101">
+            </div>
+            <div class="form-group">
+                <label>Professor</label>
+                <input type="text" name="professors" placeholder="Professor name">
+            </div>
+        </div>
+    `;
+    container.appendChild(newEntry);
+}
+
+function removeLastEntry() {
+    if (entryCount > 1) {
+        const container = document.getElementById('scheduleEntries');
+        container.removeChild(container.lastElementChild);
+        entryCount--;
+    }
+}
+</script>
+{% endblock %}

@@ -99,6 +99,12 @@ body {
   border: 1px solid #f5c6cb;
 }
 
+.alert-info {
+  background-color: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
 .alert-close {
   background: none;
   border: none;
@@ -142,6 +148,11 @@ body {
   color: white;
 }
 
+.btn-danger {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+  color: white;
+}
+
 .btn-outline {
   background: transparent;
   color: #667eea;
@@ -174,6 +185,197 @@ body {
 
 .btn-icon:hover {
   background-color: rgba(0, 0, 0, 0.1);
+}
+
+.btn-mini {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+}
+
+/* Course Badges */
+.course-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-weight: bold;
+  margin-left: 0.5rem;
+}
+
+.course-badge.regular {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.course-badge.manual {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+/* Course Cards */
+.course-card.neutral {
+  border-left-color: #6c757d;
+}
+
+.course-title {
+  display: flex;
+  align-items: center;
+}
+
+.manual-course-info {
+  padding: 1rem 0;
+  text-align: center;
+  color: #666;
+}
+
+.manual-course-info p {
+  margin-bottom: 1rem;
+}
+
+/* Manual Slots */
+.manual-slot {
+  border-left-color: #ff9800 !important;
+}
+
+.manual-slot-block {
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%) !important;
+}
+
+.slot-type {
+  font-size: 0.625rem;
+  opacity: 0.9;
+}
+
+.slot-actions {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+}
+
+/* Week Info */
+.week-info {
+  background: white;
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #17a2b8;
+}
+
+.week-info h3 {
+  color: #333;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.week-info p {
+  color: #666;
+  margin: 0;
+}
+
+/* Schedule Setup */
+.schedule-setup-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.schedule-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.schedule-header h1 {
+  color: #333;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.schedule-header p {
+  color: #666;
+}
+
+.schedule-form {
+  background: white;
+  border-radius: 15px;
+  padding: 2rem;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+}
+
+.schedule-entry {
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  background: #f8f9fa;
+}
+
+.schedule-entry h3 {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.schedule-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+/* Checkbox Styles */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-right: 0.5rem;
+  transform: scale(1.2);
+}
+
+.form-help {
+  color: #666;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+/* Info Box */
+.info-box {
+  background: #e3f2fd;
+  border: 1px solid #bbdefb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.info-box i {
+  color: #1976d2;
+  margin-top: 0.125rem;
+}
+
+.info-box p {
+  margin: 0;
+  color: #1565c0;
+  font-size: 0.875rem;
 }
 
 /* Authentication Pages */
@@ -229,7 +431,8 @@ body {
 }
 
 .form-group input,
-.form-group select {
+.form-group select,
+.form-group textarea {
   width: 100%;
   padding: 0.75rem;
   border: 2px solid #e1e5e9;
@@ -239,9 +442,15 @@ body {
 }
 
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group textarea:focus {
   outline: none;
   border-color: #667eea;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
 }
 
 .form-row {
@@ -312,6 +521,10 @@ body {
 
 .stat-card.danger {
   border-left: 5px solid #dc3545;
+}
+
+.stat-card.info {
+  border-left: 5px solid #17a2b8;
 }
 
 .stat-icon {
@@ -1195,5 +1408,13 @@ body {
   .header-actions {
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .schedule-actions {
+    flex-direction: column;
+  }
+
+  .form-actions {
+    flex-direction: column;
   }
 }

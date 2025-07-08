@@ -8,39 +8,61 @@
     <div class="timetable-header">
         <h1><i class="fas fa-calendar-alt"></i> Weekly Timetable</h1>
         <div class="timetable-actions">
+            <button class="btn btn-primary" onclick="openBookSlotModal()">
+                <i class="fas fa-plus"></i> Book Time Slot
+            </button>
             <a href="{% url 'dashboard' %}" class="btn btn-outline">
                 <i class="fas fa-arrow-left"></i> Back to Dashboard
             </a>
         </div>
     </div>
 
+    <!-- Current Week Info -->
+    <div class="week-info">
+        <h3><i class="fas fa-calendar-week"></i> Week of {{ current_week_start|date:"M d, Y" }}</h3>
+        <p>Regular course schedules are permanent. Manual slots will clear at the end of the week.</p>
+    </div>
+
     <!-- Today's Schedule -->
     <div class="today-schedule">
-        <h2><i class="fas fa-clock"></i> Today's Lectures</h2>
+        <h2><i class="fas fa-clock"></i> Today's Schedule</h2>
         {% if today_schedule %}
             <div class="today-lectures">
-                {% for lecture in today_schedule %}
-                <div class="today-lecture-card">
+                {% for item in today_schedule %}
+                <div class="today-lecture-card {% if item.type == 'manual_slot' %}manual-slot{% endif %}">
                     <div class="lecture-time">
                         <i class="fas fa-clock"></i>
-                        {{ lecture.start_time }} - {{ lecture.end_time }}
+                        {{ item.start_time }} - {{ item.end_time }}
                     </div>
                     <div class="lecture-details">
-                        <h4>{{ lecture.course.name }}</h4>
-                        {% if lecture.room %}
-                            <p><i class="fas fa-map-marker-alt"></i> {{ lecture.room }}</p>
-                        {% endif %}
-                        {% if lecture.professor %}
-                            <p><i class="fas fa-user-tie"></i> {{ lecture.professor }}</p>
+                        <h4>{{ item.title }}</h4>
+                        {% if item.type == 'lecture' %}
+                            {% if item.room %}
+                                <p><i class="fas fa-map-marker-alt"></i> {{ item.room }}</p>
+                            {% endif %}
+                            {% if item.professor %}
+                                <p><i class="fas fa-user-tie"></i> {{ item.professor }}</p>
+                            {% endif %}
+                        {% else %}
+                            <p><i class="fas fa-tag"></i> {{ item.item.get_slot_type_display }}</p>
+                            {% if item.notes %}
+                                <p><i class="fas fa-sticky-note"></i> {{ item.notes }}</p>
+                            {% endif %}
                         {% endif %}
                     </div>
                     <div class="lecture-actions">
-                        <button class="btn btn-sm btn-success" onclick="markAttendanceToday({{ lecture.course.id }}, true)">
-                            <i class="fas fa-check"></i> Present
-                        </button>
-                        <button class="btn btn-sm btn-warning" onclick="markAttendanceToday({{ lecture.course.id }}, false)">
-                            <i class="fas fa-times"></i> Absent
-                        </button>
+                        {% if item.type == 'lecture' %}
+                            <button class="btn btn-sm btn-success" onclick="markAttendanceToday({{ item.course.id }}, true)">
+                                <i class="fas fa-check"></i> Present
+                            </button>
+                            <button class="btn btn-sm btn-warning" onclick="markAttendanceToday({{ item.course.id }}, false)">
+                                <i class="fas fa-times"></i> Absent
+                            </button>
+                        {% else %}
+                            <button class="btn btn-sm btn-danger" onclick="deleteSlot({{ item.item.id }}, '{{ item.title }}')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
@@ -48,7 +70,7 @@
         {% else %}
             <div class="empty-state">
                 <i class="fas fa-calendar-times"></i>
-                <p>No lectures scheduled for today</p>
+                <p>No schedule for today</p>
             </div>
         {% endif %}
     </div>
@@ -69,19 +91,28 @@
                 <div class="day-header">{{ day_name }}</div>
                 {% for time_slot in time_slots %}
                 <div class="lecture-slot" data-day="{{ day_code }}" data-time="{{ time_slot }}">
-                    {% for lecture in weekly_schedule|lookup:day_code %}
-                        {% if lecture.start_time|time:"H:i" == time_slot %}
-                        <div class="lecture-block" style="height: {{ lecture.duration_minutes|div:30|mul:40 }}px;">
-                            <div class="lecture-title">{{ lecture.course.name }}</div>
-                            <div class="lecture-time">{{ lecture.start_time }} - {{ lecture.end_time }}</div>
-                            {% if lecture.room %}
-                                <div class="lecture-room">{{ lecture.room }}</div>
+                    {% for item in weekly_schedule|lookup:day_code %}
+                        {% if item.start_time|time:"H:i" == time_slot %}
+                        <div class="lecture-block {% if item.type == 'manual_slot' %}manual-slot-block{% endif %}" style="height: {{ item.item.duration_minutes|div:30|mul:40 }}px;">
+                            <div class="lecture-title">{{ item.title }}</div>
+                            <div class="lecture-time">{{ item.start_time }} - {{ item.end_time }}</div>
+                            {% if item.type == 'lecture' %}
+                                {% if item.room %}
+                                    <div class="lecture-room">{{ item.room }}</div>
+                                {% endif %}
+                                <div class="lecture-attendance">
+                                    <span class="attendance-percentage {% if item.course.is_below_threshold %}danger{% else %}success{% endif %}">
+                                        {{ item.course.attendance_percentage }}%
+                                    </span>
+                                </div>
+                            {% else %}
+                                <div class="slot-type">{{ item.item.get_slot_type_display }}</div>
+                                <div class="slot-actions">
+                                    <button class="btn-mini btn-danger" onclick="deleteSlot({{ item.item.id }}, '{{ item.title }}')" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
                             {% endif %}
-                            <div class="lecture-attendance">
-                                <span class="attendance-percentage {% if lecture.course.is_below_threshold %}danger{% else %}success{% endif %}">
-                                    {{ lecture.course.attendance_percentage }}%
-                                </span>
-                            </div>
                         </div>
                         {% endif %}
                     {% endfor %}
@@ -165,10 +196,85 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Book Manual Slot Modal -->
+<div id="bookSlotModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-calendar-plus"></i> Book Time Slot</h3>
+            <button class="modal-close" onclick="closeModal('bookSlotModal')">&times;</button>
+        </div>
+        <form method="post" action="{% url 'book_manual_slot' %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" name="title" required placeholder="e.g., Study Group, Gym Session">
+            </div>
+            
+            <div class="form-group">
+                <label>Type</label>
+                <select name="slot_type" required>
+                    {% for type_code, type_name in slot_types %}
+                    <option value="{{ type_code }}">{{ type_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Date</label>
+                <select name="date" required>
+                    {% for date in week_dates %}
+                    <option value="{{ date|date:'Y-m-d' }}">{{ date|date:'l, M d' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Time</label>
+                    <input type="time" name="start_time" required>
+                </div>
+                <div class="form-group">
+                    <label>End Time</label>
+                    <input type="time" name="end_time" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Notes (Optional)</label>
+                <textarea name="notes" rows="3" placeholder="Additional details..."></textarea>
+            </div>
+            
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                <p>Manual slots will automatically clear at the end of the week. The system will check for conflicts with existing schedule.</p>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" onclick="closeModal('bookSlotModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Book Slot</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+function openBookSlotModal() {
+    document.getElementById('bookSlotModal').style.display = 'flex';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+function deleteSlot(slotId, slotTitle) {
+    if (confirm(`Are you sure you want to delete "${slotTitle}"?`)) {
+        window.location.href = `/delete-slot/${slotId}/`;
+    }
+}
+
 async function markAttendanceToday(courseId, attended) {
     const today = new Date().toISOString().split('T')[0];
     await markAttendanceForDate(courseId, today, attended);
@@ -219,6 +325,16 @@ function showAlert(message, type) {
             alertDiv.remove();
         }
     }, 3000);
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
 }
 </script>
 {% endblock %}

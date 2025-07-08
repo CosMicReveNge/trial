@@ -19,15 +19,19 @@
     <!-- Today's Schedule Quick View -->
     {% if today_schedule %}
     <div class="today-quick-view">
-        <h2><i class="fas fa-clock"></i> Today's Lectures</h2>
+        <h2><i class="fas fa-clock"></i> Today's Schedule</h2>
         <div class="today-lectures-horizontal">
-            {% for lecture in today_schedule %}
-            <div class="today-lecture-mini">
-                <div class="lecture-time">{{ lecture.start_time }}</div>
-                <div class="lecture-name">{{ lecture.course.name }}</div>
-                <div class="lecture-status {% if lecture.course.is_below_threshold %}danger{% else %}success{% endif %}">
-                    {{ lecture.course.attendance_percentage }}%
-                </div>
+            {% for item in today_schedule %}
+            <div class="today-lecture-mini {% if item.type == 'manual_slot' %}manual-slot{% endif %}">
+                <div class="lecture-time">{{ item.start_time }}</div>
+                <div class="lecture-name">{{ item.title }}</div>
+                {% if item.type == 'lecture' %}
+                    <div class="lecture-status {% if item.course.is_below_threshold %}danger{% else %}success{% endif %}">
+                        {{ item.course.attendance_percentage }}%
+                    </div>
+                {% else %}
+                    <div class="slot-type">{{ item.item.get_slot_type_display }}</div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -84,6 +88,16 @@
             </div>
         </div>
         
+        <div class="stat-card info">
+            <div class="stat-icon">
+                <i class="fas fa-calendar-check"></i>
+            </div>
+            <div class="stat-content">
+                <h3>{{ regular_courses.count }}</h3>
+                <p>Regular Courses</p>
+            </div>
+        </div>
+        
         <div class="stat-card danger">
             <div class="stat-icon">
                 <i class="fas fa-exclamation-triangle"></i>
@@ -99,7 +113,7 @@
                 <i class="fas fa-check-circle"></i>
             </div>
             <div class="stat-content">
-                <h3>{{ total_courses|add:"-"|add:courses_below_75 }}</h3>
+                <h3>{{ regular_courses.count|add:"-"|add:courses_below_75 }}</h3>
                 <p>Above 75%</p>
             </div>
         </div>
@@ -134,11 +148,18 @@
         {% if courses %}
         <div class="courses-grid">
             {% for course in courses %}
-            <div class="course-card {% if course.is_below_threshold %}danger{% else %}success{% endif %}">
+            <div class="course-card {% if course.is_regular and course.is_below_threshold %}danger{% elif course.is_regular %}success{% else %}neutral{% endif %}">
                 <div class="course-header">
-                    <h3>{{ course.name }}</h3>
+                    <div class="course-title">
+                        <h3>{{ course.name }}</h3>
+                        {% if course.is_regular %}
+                            <span class="course-badge regular">Regular</span>
+                        {% else %}
+                            <span class="course-badge manual">Manual</span>
+                        {% endif %}
+                    </div>
                     <div class="course-actions">
-                        <button class="btn-icon" onclick="openEditCourseModal({{ course.id }}, '{{ course.name }}', {{ course.total_lectures }}, {{ course.attended_lectures }})" title="Edit">
+                        <button class="btn-icon" onclick="openEditCourseModal({{ course.id }}, '{{ course.name }}', {{ course.total_lectures }}, {{ course.attended_lectures }}, {{ course.is_regular|yesno:'true,false' }})" title="Edit">
                             <i class="fas fa-edit"></i>
                         </button>
                         <a href="{% url 'course_detail' course.id %}" class="btn-icon" title="View Details">
@@ -150,6 +171,7 @@
                     </div>
                 </div>
                 
+                {% if course.is_regular %}
                 <div class="attendance-stats">
                     <div class="attendance-percentage">
                         <span class="percentage">{{ course.attendance_percentage }}%</span>
@@ -172,6 +194,23 @@
                         <i class="fas fa-calendar-plus"></i> Add Lecture
                     </button>
                 </div>
+                {% else %}
+                <div class="manual-course-info">
+                    <p><i class="fas fa-info-circle"></i> Manual tracking course</p>
+                    <div class="lecture-stats">
+                        <span><i class="fas fa-check"></i> {{ course.attended_lectures }}</span>
+                        <span><i class="fas fa-calendar"></i> {{ course.total_lectures }}</span>
+                    </div>
+                    <div class="quick-actions">
+                        <button class="btn btn-sm btn-success" onclick="updateAttendance({{ course.id }}, 'increment')">
+                            <i class="fas fa-plus"></i> Attended
+                        </button>
+                        <button class="btn btn-sm btn-outline" onclick="updateAttendance({{ course.id }}, 'add_total')">
+                            <i class="fas fa-calendar-plus"></i> Add Lecture
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -201,16 +240,33 @@
                 <label>Course Name</label>
                 <input type="text" name="name" required>
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Total Lectures</label>
-                    <input type="number" name="total_lectures" min="0" value="0" required>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="is_regular" id="isRegularCheckbox" onchange="toggleRegularCourseInfo()">
+                    <span class="checkmark"></span>
+                    This is a regular course with scheduled lectures
+                </label>
+                <small class="form-help">Regular courses have fixed weekly schedules and attendance tracking</small>
+            </div>
+            
+            <div id="regularCourseInfo" style="display: none;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Total Lectures</label>
+                        <input type="number" name="total_lectures" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Attended Lectures</label>
+                        <input type="number" name="attended_lectures" min="0" value="0">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Attended Lectures</label>
-                    <input type="number" name="attended_lectures" min="0" value="0" required>
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    <p>After adding this course, you'll be prompted to set up its weekly schedule.</p>
                 </div>
             </div>
+            
             <div class="modal-actions">
                 <button type="button" class="btn btn-outline" onclick="closeModal('addCourseModal')">Cancel</button>
                 <button type="submit" class="btn btn-primary">Add Course</button>
@@ -232,16 +288,28 @@
                 <label>Course Name</label>
                 <input type="text" name="name" id="editCourseName" required>
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Total Lectures</label>
-                    <input type="number" name="total_lectures" id="editTotalLectures" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label>Attended Lectures</label>
-                    <input type="number" name="attended_lectures" id="editAttendedLectures" min="0" required>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="is_regular" id="editIsRegularCheckbox" onchange="toggleEditRegularCourseInfo()">
+                    <span class="checkmark"></span>
+                    This is a regular course with scheduled lectures
+                </label>
+            </div>
+            
+            <div id="editRegularCourseInfo">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Total Lectures</label>
+                        <input type="number" name="total_lectures" id="editTotalLectures" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Attended Lectures</label>
+                        <input type="number" name="attended_lectures" id="editAttendedLectures" min="0" required>
+                    </div>
                 </div>
             </div>
+            
             <div class="modal-actions">
                 <button type="button" class="btn btn-outline" onclick="closeModal('editCourseModal')">Cancel</button>
                 <button type="submit" class="btn btn-primary">Update Course</button>
@@ -253,15 +321,29 @@
 
 {% block scripts %}
 <script>
+function toggleRegularCourseInfo() {
+    const checkbox = document.getElementById('isRegularCheckbox');
+    const info = document.getElementById('regularCourseInfo');
+    info.style.display = checkbox.checked ? 'block' : 'none';
+}
+
+function toggleEditRegularCourseInfo() {
+    const checkbox = document.getElementById('editIsRegularCheckbox');
+    const info = document.getElementById('editRegularCourseInfo');
+    info.style.display = checkbox.checked ? 'block' : 'none';
+}
+
 function openAddCourseModal() {
     document.getElementById('addCourseModal').style.display = 'flex';
 }
 
-function openEditCourseModal(courseId, name, totalLectures, attendedLectures) {
+function openEditCourseModal(courseId, name, totalLectures, attendedLectures, isRegular) {
     document.getElementById('editCourseName').value = name;
     document.getElementById('editTotalLectures').value = totalLectures;
     document.getElementById('editAttendedLectures').value = attendedLectures;
+    document.getElementById('editIsRegularCheckbox').checked = isRegular;
     document.getElementById('editCourseForm').action = `/edit-course/${courseId}/`;
+    toggleEditRegularCourseInfo();
     document.getElementById('editCourseModal').style.display = 'flex';
 }
 
