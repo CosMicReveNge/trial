@@ -12,6 +12,8 @@ from django.core.exceptions import ValidationError
 import json
 from datetime import datetime, date, timedelta
 from .models import Course, LectureSchedule, AttendanceRecord, Timetable, TimetableSlot
+from django.contrib.auth import login, authenticate
+from django.contrib.auth.models import User
 
 def register_view(request):
     if request.method == 'POST':
@@ -27,6 +29,26 @@ def register_view(request):
     else:
         form = UserCreationForm()
     return render(request, 'registration/register.html', {'form': form})
+
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        # Check if username exists
+        try:
+            user_exists = User.objects.get(username=username)
+            # Username exists, now check password
+            user = authenticate(request, username=username, password=password)
+            if user is not None:
+                login(request, user)
+                return redirect('dashboard')
+            else:
+                messages.error(request, 'Username/Password is incorrect.')
+        except User.DoesNotExist:
+            messages.error(request, 'Username does not exist.')
+    
+    return render(request, 'registration/login.html')
 
 @login_required
 def dashboard(request):
@@ -196,17 +218,21 @@ def book_manual_slot(request):
     if request.method == 'POST':
         try:
             timetable, _ = Timetable.objects.get_or_create(user=request.user)
-            
+
             title = request.POST.get('title')
             slot_type = request.POST.get('slot_type')
             date_str = request.POST.get('date')
-            start_time = request.POST.get('start_time')
-            end_time = request.POST.get('end_time')
+            start_time_str = request.POST.get('start_time')
+            end_time_str = request.POST.get('end_time')
             notes = request.POST.get('notes', '')
-            
+
             # Parse date
             slot_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            
+
+            # ✅ Parse time strings into time objects
+            start_time = datetime.strptime(start_time_str, '%H:%M').time()
+            end_time = datetime.strptime(end_time_str, '%H:%M').time()
+
             # Create the slot
             slot = TimetableSlot(
                 timetable=timetable,
@@ -217,24 +243,24 @@ def book_manual_slot(request):
                 end_time=end_time,
                 notes=notes
             )
-            
+
             # Check for conflicts
             has_conflict, conflict_message = slot.has_conflict()
             if has_conflict:
                 messages.error(request, f'Time slot conflict: {conflict_message}')
                 return redirect('timetable')
-            
+
             # Validate and save
             slot.full_clean()
             slot.save()
-            
+
             messages.success(request, f'Time slot "{title}" booked successfully!')
-            
+
         except ValidationError as e:
             messages.error(request, f'Validation error: {e}')
         except Exception as e:
             messages.error(request, f'Error booking slot: {str(e)}')
-    
+
     return redirect('timetable')
 
 @login_required

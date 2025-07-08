@@ -53,10 +53,10 @@ class Course(models.Model):
         can_skip = int(max_total - self.total_lectures)
         return max(0, can_skip)
 
-    def get_next_lectures(self, days_ahead=7):
+    def get_next_lectures(self, days=7):
         """Get upcoming lectures for this course"""
         today = timezone.now().date()
-        end_date = today + timedelta(days=days_ahead)
+        end_date = today + timedelta(days=days)
         
         upcoming = []
         schedules = self.schedules.all()
@@ -159,7 +159,7 @@ class Timetable(models.Model):
     name = models.CharField(max_length=100, default="My Timetable")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    last_refreshed = models.DateTimeField(auto_now_add=True)
+    last_refreshed = models.DateTimeField(default=timezone.now)
     
     def __str__(self):
         return f"{self.user.username}'s {self.name}"

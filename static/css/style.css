@@ -222,14 +222,25 @@ body {
   align-items: center;
 }
 
-.manual-course-info {
-  padding: 1rem 0;
+/* Course Type Info */
+.course-type-info {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e9ecef;
   text-align: center;
-  color: #666;
 }
 
-.manual-course-info p {
-  margin-bottom: 1rem;
+.course-type-info small {
+  color: #666;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.course-type-info i {
+  color: #f57c00;
 }
 
 /* Manual Slots */
@@ -393,6 +404,18 @@ body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   width: 100%;
   max-width: 400px;
+  position: relative;
+}
+
+.auth-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 15px 15px 0 0;
 }
 
 .auth-header {
@@ -421,6 +444,7 @@ body {
 
 .form-group {
   margin-bottom: 1.5rem;
+  position: relative;
 }
 
 .form-group label {
@@ -428,6 +452,14 @@ body {
   margin-bottom: 0.5rem;
   font-weight: 500;
   color: #333;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-group label i {
+  color: #667eea;
+  width: 16px;
 }
 
 .form-group input,
@@ -446,6 +478,7 @@ body {
 .form-group textarea:focus {
   outline: none;
   border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .form-group textarea {
@@ -461,6 +494,13 @@ body {
 
 .form-errors {
   margin-top: 0.5rem;
+}
+
+.form-errors .error {
+  display: block;
+  color: #dc3545;
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
 }
 
 .error {
@@ -1345,6 +1385,69 @@ body {
   align-items: center;
 }
 
+/* Password Input Container */
+.password-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-container input {
+  padding-right: 3rem;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+  font-size: 1rem;
+  transition: color 0.3s ease;
+  z-index: 10;
+}
+
+.password-toggle:hover {
+  color: #667eea;
+}
+
+.password-toggle:focus {
+  outline: none;
+  color: #667eea;
+}
+
+/* Loading state for buttons */
+.btn.loading {
+  position: relative;
+  color: transparent;
+}
+
+.btn.loading::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin-left: -8px;
+  margin-top: -8px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .nav-container {
@@ -1416,5 +1519,14 @@ body {
 
   .form-actions {
     flex-direction: column;
+  }
+
+  .password-toggle {
+    right: 0.5rem;
+    padding: 0.25rem;
+  }
+
+  .password-input-container input {
+    padding-right: 2.5rem;
   }
 }

@@ -31,7 +31,12 @@
                 <label for="{{ form.password1.id_for_label }}">
                     <i class="fas fa-lock"></i> Password
                 </label>
-                {{ form.password1 }}
+                <div class="password-input-container">
+                    {{ form.password1 }}
+                    <button type="button" class="password-toggle" onclick="togglePassword('{{ form.password1.id_for_label }}', this)">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
                 {% if form.password1.errors %}
                     <div class="form-errors">
                         {% for error in form.password1.errors %}
@@ -45,7 +50,12 @@
                 <label for="{{ form.password2.id_for_label }}">
                     <i class="fas fa-lock"></i> Confirm Password
                 </label>
-                {{ form.password2 }}
+                <div class="password-input-container">
+                    {{ form.password2 }}
+                    <button type="button" class="password-toggle" onclick="togglePassword('{{ form.password2.id_for_label }}', this)">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
                 {% if form.password2.errors %}
                     <div class="form-errors">
                         {% for error in form.password2.errors %}
@@ -65,4 +75,25 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePassword(inputId, button) {
+    const input = document.getElementById(inputId);
+    const icon = button.querySelector('i');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+        button.setAttribute('title', 'Hide password');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+        button.setAttribute('title', 'Show password');
+    }
+}
+</script>
 {% endblock %}
