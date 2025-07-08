@@ -52,6 +52,8 @@ def login_view(request):
 
 @login_required
 def dashboard(request):
+    if request.user.is_superuser:
+        return redirect('/admin/') 
     courses = Course.objects.filter(user=request.user).order_by('name')
     
     # Get or create timetable and refresh if needed
