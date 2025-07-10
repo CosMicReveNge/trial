@@ -78,48 +78,50 @@
     <!-- Weekly Timetable Grid -->
     <div class="weekly-timetable">
         <h2><i class="fas fa-table"></i> Weekly Schedule</h2>
-        <div class="timetable-grid">
-            <div class="time-column">
-                <div class="time-header">Time</div>
-                {% for time_slot in time_slots %}
-                <div class="time-slot">{{ time_slot }}</div>
-                {% endfor %}
-            </div>
-            
-            {% for day_code, day_name in days_of_week %}
-            <div class="day-column">
-                <div class="day-header">{{ day_name }}</div>
-                {% for time_slot in time_slots %}
-                <div class="lecture-slot" data-day="{{ day_code }}" data-time="{{ time_slot }}">
-                    {% for item in weekly_schedule|lookup:day_code %}
-                        {% if item.start_time|time:"H:i" == time_slot %}
-                        <div class="lecture-block {% if item.type == 'manual_slot' %}manual-slot-block{% endif %}" style="height: {{ item.item.duration_minutes|div:30|mul:40 }}px;">
-                            <div class="lecture-title">{{ item.title }}</div>
-                            <div class="lecture-time">{{ item.start_time }} - {{ item.end_time }}</div>
-                            {% if item.type == 'lecture' %}
-                                {% if item.room %}
-                                    <div class="lecture-room">{{ item.room }}</div>
+        <div class="timetable-grid-container">
+            <div class="timetable-grid">
+                <div class="time-column">
+                    <div class="time-header">Time</div>
+                    {% for time_slot in time_slots %}
+                    <div class="time-slot">{{ time_slot }}</div>
+                    {% endfor %}
+                </div>
+                
+                {% for day_code, day_name in days_of_week %}
+                <div class="day-column">
+                    <div class="day-header">{{ day_name }}</div>
+                    {% for time_slot in time_slots %}
+                    <div class="lecture-slot" data-day="{{ day_code }}" data-time="{{ time_slot }}">
+                        {% for item in weekly_schedule|lookup:day_code %}
+                            {% if item.start_time|time:"H:i" == time_slot %}
+                            <div class="lecture-block {% if item.type == 'manual_slot' %}manual-slot-block{% endif %}" style="height: {{ item.item.duration_minutes|div:30|mul:40 }}px;">
+                                <div class="lecture-title">{{ item.title }}</div>
+                                <div class="lecture-time">{{ item.start_time }} - {{ item.end_time }}</div>
+                                {% if item.type == 'lecture' %}
+                                    {% if item.room %}
+                                        <div class="lecture-room">{{ item.room }}</div>
+                                    {% endif %}
+                                    <div class="lecture-attendance">
+                                        <span class="attendance-percentage {% if item.course.is_below_threshold %}danger{% else %}success{% endif %}">
+                                            {{ item.course.attendance_percentage }}%
+                                        </span>
+                                    </div>
+                                {% else %}
+                                    <div class="slot-type">{{ item.item.get_slot_type_display }}</div>
+                                    <div class="slot-actions">
+                                        <button class="btn-mini btn-danger" onclick="deleteSlot({{ item.item.id }}, '{{ item.title }}')" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
                                 {% endif %}
-                                <div class="lecture-attendance">
-                                    <span class="attendance-percentage {% if item.course.is_below_threshold %}danger{% else %}success{% endif %}">
-                                        {{ item.course.attendance_percentage }}%
-                                    </span>
-                                </div>
-                            {% else %}
-                                <div class="slot-type">{{ item.item.get_slot_type_display }}</div>
-                                <div class="slot-actions">
-                                    <button class="btn-mini btn-danger" onclick="deleteSlot({{ item.item.id }}, '{{ item.title }}')" title="Delete">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
+                            </div>
                             {% endif %}
-                        </div>
-                        {% endif %}
+                        {% endfor %}
+                    </div>
                     {% endfor %}
                 </div>
                 {% endfor %}
             </div>
-            {% endfor %}
         </div>
     </div>
 

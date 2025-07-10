@@ -7,7 +7,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-your-secret-key-here')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-
 ALLOWED_HOSTS = ['.onrender.com', '127.0.0.1', 'localhost']
 CSRF_TRUSTED_ORIGINS = ['https://attendance-tracker-lpo7.onrender.com']
 

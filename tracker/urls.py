@@ -27,6 +27,7 @@ urlpatterns = [
     
     # Schedule URLs
     path('course/<int:course_id>/add-schedule-detail/', views.add_schedule, name='add_schedule'),
+    path('edit-schedule/<int:schedule_id>/', views.edit_schedule, name='edit_schedule'),
     path('delete-schedule/<int:schedule_id>/', views.delete_schedule, name='delete_schedule'),
     
     # API URLs

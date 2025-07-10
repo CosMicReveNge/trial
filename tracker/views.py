@@ -52,8 +52,6 @@ def login_view(request):
 
 @login_required
 def dashboard(request):
-    if request.user.is_superuser:
-        return redirect('/admin/') 
     courses = Course.objects.filter(user=request.user).order_by('name')
     
     # Get or create timetable and refresh if needed
@@ -69,9 +67,16 @@ def dashboard(request):
     # Get upcoming lectures with suggestions (only for regular courses)
     upcoming_lectures = timetable.get_upcoming_lectures(days=3)[:5]  # Next 5 lectures
     
-    # Get suggestions for each regular course
+    # Get suggestions for each regular course (GROUP BY COURSE - NO DUPLICATES)
     suggestions = []
+    processed_courses = set()  # Track which courses we've already processed
+    
     for course in regular_courses:
+        if course.id in processed_courses:
+            continue  # Skip if we've already processed this course
+            
+        processed_courses.add(course.id)
+        
         if course.is_below_threshold:
             needed = course.lectures_needed_for_75_percent()
             next_lectures = course.get_next_lectures(days=7)
@@ -220,21 +225,17 @@ def book_manual_slot(request):
     if request.method == 'POST':
         try:
             timetable, _ = Timetable.objects.get_or_create(user=request.user)
-
+            
             title = request.POST.get('title')
             slot_type = request.POST.get('slot_type')
             date_str = request.POST.get('date')
-            start_time_str = request.POST.get('start_time')
-            end_time_str = request.POST.get('end_time')
+            start_time = request.POST.get('start_time')
+            end_time = request.POST.get('end_time')
             notes = request.POST.get('notes', '')
-
+            
             # Parse date
             slot_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-
-            # ✅ Parse time strings into time objects
-            start_time = datetime.strptime(start_time_str, '%H:%M').time()
-            end_time = datetime.strptime(end_time_str, '%H:%M').time()
-
+            
             # Create the slot
             slot = TimetableSlot(
                 timetable=timetable,
@@ -245,24 +246,24 @@ def book_manual_slot(request):
                 end_time=end_time,
                 notes=notes
             )
-
+            
             # Check for conflicts
             has_conflict, conflict_message = slot.has_conflict()
             if has_conflict:
                 messages.error(request, f'Time slot conflict: {conflict_message}')
                 return redirect('timetable')
-
+            
             # Validate and save
             slot.full_clean()
             slot.save()
-
+            
             messages.success(request, f'Time slot "{title}" booked successfully!')
-
+            
         except ValidationError as e:
             messages.error(request, f'Validation error: {e}')
         except Exception as e:
             messages.error(request, f'Error booking slot: {str(e)}')
-
+    
     return redirect('timetable')
 
 @login_required
@@ -357,6 +358,7 @@ def course_detail(request, course_id):
         'upcoming_lectures': upcoming_lectures,
         'lectures_needed': course.lectures_needed_for_75_percent() if course.is_regular else 0,
         'lectures_can_skip': course.lectures_can_skip() if course.is_regular else 0,
+        'days_of_week': LectureSchedule.DAYS_OF_WEEK,
     }
     return render(request, 'tracker/course_detail.html', context)
 
@@ -388,6 +390,26 @@ def add_schedule(request, course_id):
             messages.error(request, 'Schedule already exists for this time slot.')
     
     return redirect('course_detail', course_id=course_id)
+
+@login_required
+def edit_schedule(request, schedule_id):
+    """Edit an existing schedule"""
+    schedule = get_object_or_404(LectureSchedule, id=schedule_id, course__user=request.user)
+    
+    if request.method == 'POST':
+        schedule.day_of_week = request.POST.get('day_of_week')
+        schedule.start_time = request.POST.get('start_time')
+        schedule.end_time = request.POST.get('end_time')
+        schedule.room = request.POST.get('room', '')
+        schedule.professor = request.POST.get('professor', '')
+        
+        try:
+            schedule.save()
+            messages.success(request, 'Schedule updated successfully!')
+        except Exception as e:
+            messages.error(request, f'Error updating schedule: {str(e)}')
+    
+    return redirect('course_detail', course_id=schedule.course.id)
 
 @login_required
 def delete_schedule(request, schedule_id):
@@ -456,23 +478,29 @@ def suggestions_api(request):
     suggestions = []
     upcoming_lectures = timetable.get_upcoming_lectures(days=7)
     
-    # Add time-aware suggestions
+    # Group by course to avoid duplicates
+    course_suggestions = {}
+    
     for lecture_data in upcoming_lectures:
         course = lecture_data['course']
         lecture_info = lecture_data['lecture_info']
         suggestion = lecture_data['suggestion']
         
-        suggestions.append({
-            'course_id': course.id,
-            'course_name': course.name,
-            'type': suggestion['type'],
-            'message': suggestion['message'],
-            'current_percentage': course.attendance_percentage,
-            'lecture_date': lecture_info['date'].strftime('%Y-%m-%d'),
-            'lecture_time': lecture_info['schedule'].start_time.strftime('%H:%M'),
-            'lecture_day': lecture_info['schedule'].get_day_of_week_display(),
-            'is_today': lecture_info['is_today'],
-            'days_from_now': lecture_info['days_from_now']
-        })
+        # Only add if we haven't seen this course yet
+        if course.id not in course_suggestions:
+            course_suggestions[course.id] = {
+                'course_id': course.id,
+                'course_name': course.name,
+                'type': suggestion['type'],
+                'message': suggestion['message'],
+                'current_percentage': course.attendance_percentage,
+                'lecture_date': lecture_info['date'].strftime('%Y-%m-%d'),
+                'lecture_time': lecture_info['schedule'].start_time.strftime('%H:%M'),
+                'lecture_day': lecture_info['schedule'].get_day_of_week_display(),
+                'is_today': lecture_info['is_today'],
+                'days_from_now': lecture_info['days_from_now']
+            }
+    
+    suggestions = list(course_suggestions.values())
     
     return JsonResponse({'suggestions': suggestions})
