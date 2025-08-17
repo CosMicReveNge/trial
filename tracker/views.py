@@ -229,12 +229,21 @@ def book_manual_slot(request):
             title = request.POST.get('title')
             slot_type = request.POST.get('slot_type')
             date_str = request.POST.get('date')
-            start_time = request.POST.get('start_time')
-            end_time = request.POST.get('end_time')
+            start_time_str = request.POST.get('start_time')
+            end_time_str = request.POST.get('end_time')
             notes = request.POST.get('notes', '')
             
             # Parse date
             slot_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            
+            # ✅ Parse time strings into datetime.time
+            start_time = datetime.strptime(start_time_str, "%H:%M").time()
+            end_time = datetime.strptime(end_time_str, "%H:%M").time()
+
+            # Check that end time is after start time
+            if start_time >= end_time:
+                messages.error(request, 'End time must be after start time')
+                return redirect('timetable')
             
             # Create the slot
             slot = TimetableSlot(
